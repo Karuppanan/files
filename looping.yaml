@@ -1,0 +1,146 @@
+Here's how you can structure your Ansible project to achieve your requirements. This includes the five task files, an inventory file, and a main playbook that ties them together. 
+
+### Directory Structure
+
+```plaintext
+ansible-project/
+├── ansible.cfg
+├── inventory.yml
+├── input.yml
+├── tasks/
+│   ├── stop_instance.yml
+│   ├── create_password.yml
+│   ├── store_password.yml
+│   ├── create_file.yml
+│   ├── start_instance.yml
+├── main.yml
+```
+
+### 1. **Input File**: `input.yml`
+
+```yaml
+name: test1
+id: 1
+security:
+  testinginstance:
+    - name: testinstance1
+      pass: abc@123
+    - name: testinstance2
+      pass: abc@123
+    - name: testinstance3
+      pass: abc@123
+instance:
+  - testsysteminstance
+  - testsysteminstance2
+```
+
+### 2. **Inventory File**: `inventory.yml`
+
+```yaml
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+```
+
+### 3. **Task 1 - Stop Instance**: `tasks/stop_instance.yml`
+
+```yaml
+- name: Stop instances from the input file
+  debug:
+    msg: "Stopping instance: {{ item }}"
+  loop: "{{ input.instance }}"
+```
+
+### 4. **Task 2 - Create Random Encrypted Password**: `tasks/create_password.yml`
+
+```yaml
+- name: Create random encrypted passwords
+  set_fact:
+    encrypted_passwords: "{{ encrypted_passwords | default({}) | combine({item.name: lookup('password', '/dev/null length=12 chars=ascii_letters,digits')}) }}"
+  with_items: "{{ input.security.testinginstance }}"
+```
+
+### 5. **Task 3 - Store Encrypted Password**: `tasks/store_password.yml`
+
+```yaml
+- name: Store the encrypted passwords in a fact
+  debug:
+    var: encrypted_passwords
+```
+
+### 6. **Task 4 - Create File and Store Passwords**: `tasks/create_file.yml`
+
+```yaml
+- name: Create a file and store passwords and testinginstance names
+  copy:
+    dest: "/tmp/{{ item.name }}_credentials.txt"
+    content: |
+      Name: {{ item.name }}
+      Encrypted Password: {{ encrypted_passwords[item.name] }}
+  loop: "{{ input.security.testinginstance }}"
+```
+
+### 7. **Task 5 - Start Instance**: `tasks/start_instance.yml`
+
+```yaml
+- name: Start instances from the input file
+  debug:
+    msg: "Starting instance: {{ item }}"
+  loop: "{{ input.instance }}"
+```
+
+### 8. **Main Playbook**: `main.yml`
+
+```yaml
+- hosts: localhost
+  vars_files:
+    - input.yml
+  tasks:
+    - name: Include task to stop instances
+      include_tasks: tasks/stop_instance.yml
+
+    - name: Include task to create random encrypted passwords
+      include_tasks: tasks/create_password.yml
+
+    - name: Include task to store encrypted passwords
+      include_tasks: tasks/store_password.yml
+
+    - name: Include task to create file and store passwords
+      include_tasks: tasks/create_file.yml
+
+    - name: Include task to start instances
+      include_tasks: tasks/start_instance.yml
+```
+
+### 9. **Ansible Configuration**: `ansible.cfg`
+
+```ini
+[defaults]
+inventory = inventory.yml
+host_key_checking = False
+```
+
+### Execution Steps
+
+1. Navigate to the project directory:
+
+   ```bash
+   cd ansible-project
+   ```
+
+2. Run the playbook:
+
+   ```bash
+   ansible-playbook main.yml
+   ```
+
+### Expected Workflow
+
+1. **Stop instances** listed in the `input.yml`.
+2. **Generate encrypted passwords** for each `testinginstance`.
+3. **Store those passwords** in a fact.
+4. **Create files** in `/tmp/` for each `testinginstance` with its name and encrypted password.
+5. **Start instances** listed in the `input.yml`.
+
+This setup can be expanded or modified to suit specific requirements!
